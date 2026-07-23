@@ -62,7 +62,7 @@ class ContractController extends Controller
             return $contract;
         });
 
-        return redirect()->route('contracts.show', $contract)->with('success', 'تم إنشاء العقد بنجاح.');
+        return redirect()->route('contracts.show', $contract)->with('success', __('messages.created_success'));
     }
 
     public function show(Contract $contract)
@@ -98,27 +98,27 @@ class ContractController extends Controller
             }
         });
 
-        return redirect()->route('contracts.show', $contract)->with('success', 'تم تحديث العقد بنجاح.');
+        return redirect()->route('contracts.show', $contract)->with('success', __('messages.updated_success'));
     }
 
     public function destroy(Contract $contract)
     {
         $contract->delete();
-        return redirect()->route('contracts.index')->with('success', 'تم حذف العقد.');
+        return redirect()->route('contracts.index')->with('success', __('messages.deleted_success'));
     }
 
     /** إلغاء العقد (بدون حذفه) */
     public function cancel(Contract $contract)
     {
         $contract->update(['status' => 'cancelled']);
-        return back()->with('success', 'تم إلغاء العقد.');
+        return back()->with('success', __('messages.cancelled_success'));
     }
 
     /** تفعيل عقد كان في حالة مسودة */
     public function activate(Contract $contract)
     {
         $contract->update(['status' => 'active']);
-        return back()->with('success', 'تم تفعيل العقد.');
+        return back()->with('success', __('messages.approved_success'));
     }
 
 }

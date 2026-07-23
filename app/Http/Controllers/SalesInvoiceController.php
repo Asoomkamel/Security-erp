@@ -45,7 +45,7 @@ class SalesInvoiceController extends Controller
 
         if (!$client->hasAvailableCredit($estimatedTotal)) {
             return back()->withInput()->withErrors([
-                'client_company_id' => "هذه الفاتورة تتجاوز الحد الائتماني المسموح لعميل \"{$client->name}\" ({$client->credit_limit} ر.س).",
+                'client_company_id' => __('messages.credit_limit_exceeded') . " (\"{$client->name}\": {$client->credit_limit} ر.س)",
             ]);
         }
 
@@ -64,7 +64,7 @@ class SalesInvoiceController extends Controller
             return $invoice->fresh();
         });
 
-        return redirect()->route('sales-invoices.show', $invoice)->with('success', 'تم إنشاء فاتورة البيع بنجاح.');
+        return redirect()->route('sales-invoices.show', $invoice)->with('success', __('messages.created_success'));
     }
 
     public function show(SalesInvoice $salesInvoice)
@@ -77,6 +77,6 @@ class SalesInvoiceController extends Controller
     public function cancel(SalesInvoice $salesInvoice)
     {
         $salesInvoice->update(['status' => 'cancelled']);
-        return back()->with('success', 'تم إلغاء الفاتورة.');
+        return back()->with('success', __('messages.cancelled_success'));
     }
 }

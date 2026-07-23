@@ -134,8 +134,7 @@ DB_PASSWORD=
 php artisan migrate
 php artisan db:seed --class=Phase1Seeder
 
-# 6) تسجيل الـ Middleware في bootstrap/app.php (Laravel 11):
-# $middleware->alias(['role' => \App\Http\Middleware\CheckRole::class]);
+# 6) ملف bootstrap/app.php موجود بالفعل بهذا التسليم (يسجّل middleware الأدوار + مسارات web/api/console تلقائيًا)
 
 # 7) تشغيل السيرفر محليًا للتجربة
 php artisan serve
@@ -153,4 +152,51 @@ php artisan vendor:publish --provider="Maatwebsite\Excel\ExcelServiceProvider"
 - كلمة المرور: `password` (غيّرها فورًا)
 
 ## 📌 ملاحظة مهمة
-لم يتم إنشاء ملفات Views (Blade) بعد في هذه المرحلة — الأولوية كانت للبنية الخلفية (Models/Migrations/Controllers/Routes). في Phase 2 سنبدأ بإضافة الواجهات (أو يمكن ربطها بلوحة تحكم جاهزة مثل Filament لتسريع الواجهات إن رغبت).
+واجهات Blade أُضيفت تدريجيًا بدءًا من Phase 6 (التقارير) وPhase 7-8 (الحضور)؛ بعض الوحدات (أوامر الدفع، وثائق الموظف) لا تزال بدون Views مخصصة.
+
+---
+
+## 🧩 جولة إغلاق 8 فجوات إضافية (بعد Phase 9)
+
+### 1) اختبارات آلية (Pest PHP)
+- `phpunit.xml` + `tests/TestCase.php` + `tests/Pest.php` (مع دالة مساعدة `actingAsUser()`) — لم تكن موجودة سابقًا لأن المشروع بُني ملفًا بملف وليس عبر `laravel new`
+- 7 Factories: Employee, ClientCompany, Site, Contract, SalesInvoice, CashAccount, User (بحالات `->withSalary()`, `->withCreditLimit()`, `->expiringSoon()` وغيرها)
+- 7 ملفات اختبار (Unit + Feature) تغطي: حماية تكرار تشغيل الرواتب، توليد فواتير العقود، حساب المسافة الجغرافية، أمان الترقيم التسلسلي، الحد الائتماني، وحضور/عقود عبر HTTP فعلي
+- ⚠️ **لم يتم فعليًا تشغيل** `composer require pestphp/pest` ولا `php artisan test` في هذه البيئة (لا يوجد وصول لـ Packagist ولا PHP CLI بهذه الحاوية) — الحزم مضافة بـ `composer.json` والكود جاهز، لكن التنفيذ الفعلي يحتاج بيئتك المحلية
+
+### 2) Role Enum
+- `App\Enums\UserRole` (backed string enum) بدل النص الحر، مع `label()`, `all()`, `selectOptions()`
+- `User::role` الآن Enum Cast، و`CheckRole` يرفض أي اسم دور غير معرَّف بالـ Enum بدل فشل صامت
+
+### 3) Docker Compose
+- `docker-compose.yml` بجذر المستودع (وليس داخل `security-erp/`) — 5 خدمات: app, nginx, mysql, redis, mailpit
+- `security-erp/Dockerfile`, `nginx.conf`, `php.ini`, `security-erp/.env.docker`
+
+### 4) CI/CD (GitHub Actions)
+- `.github/workflows/tests.yml` (MySQL service + `php artisan test`)
+- `.github/workflows/lint.yml` (`vendor/bin/pint --test`)
+- `.github/workflows/deploy.yml` (نشر عبر SSH بأسرار `DEPLOY_HOST/USER/KEY`)
+
+### 5) رسوم بيانية للوحة التحكم (Chart.js)
+- 4 رسوم: الإيرادات/المصاريف (خط)، حالة الفواتير (دائري)، الموظفون لكل فرع (أعمدة)، أعمار الفواتير غير المسددة (أعمدة) — بتنسيق عملة سعودي وتسميات عربية
+- بيانات كل رسم تُحسب فعليًا بـ `ReportController::dashboard()` (ليست بيانات وهمية)
+
+### 6) REST API (Laravel Sanctum)
+- `bootstrap/app.php` **أُنشئ لأول مرة** بهذا التسليم (لم يكن موجودًا أصلًا) ويُسجِّل `routes/api.php` + middleware الأدوار
+- `routes/api.php` + 6 Controllers: `AuthApiController` (تسجيل دخول/خروج بـ Token)، `AttendanceApiController` (حضور بإحداثيات GPS فعلية مع تحقق جغرافي وحماية من التكرار 409)، `EmployeeApiController`, `SiteApiController`, `ContractApiController`, `InvoiceApiController`
+- ⚠️ يحتاج فعليًا: `composer require laravel/sanctum` ثم `php artisan vendor:publish --provider="Laravel\Sanctum\SanctumServiceProvider"` ثم `php artisan migrate`
+
+### 7) التعريب (Localization)
+- `lang/ar/messages.php` + `lang/ar/validation.php` + مقابلاتها الإنجليزية بالكامل
+- `config/app.php` (أُنشئ لأول مرة) بـ `locale => ar` و `faker_locale => ar_SA`
+- ⚠️ **صراحة**: طبّقت نمط `__('messages.created_success')` على 3 Controllers فقط (Contract, SalesInvoice, Employee) كنموذج توضيحي — استبدال كل النصوص العربية المباشرة عبر ~30 Controller يحتاج جولة عمل منفصلة مخصصة لهذا الغرض فقط، وليس واقعيًا ضمن هذه الجولة
+
+### 8) أوامر إعداد البريد
+- `php artisan setup:mail` — يسأل تفاعليًا عن بيانات SMTP ويحفظها بـ `SystemSetting` **و** ملف `.env` معًا
+- `php artisan notifications:test {email?}` — يرسل إشعار تجريبي فعلي (`ContractExpiryNotification`) للتحقق من عمل الإرسال
+
+## ⏭️ ما تبقى صراحة بعد هذه الجولة
+- تشغيل فعلي لكل أوامر composer/artisan المذكورة أعلاه (تحتاج بيئة محلية بإنترنت)
+- تعميم `__()` على كل الكنترولرز بدل 3 فقط
+- Views لأوامر الدفع ووثائق الموظف
+- Sanctum config/sanctum.php الكامل (يُنشأ تلقائيًا بـ vendor:publish)

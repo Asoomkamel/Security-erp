@@ -32,7 +32,7 @@ class EmployeeController extends Controller
         $employee = Employee::create($data);
 
         return redirect()->route('employees.show', $employee)
-            ->with('success', 'تم إضافة الموظف بنجاح.');
+            ->with('success', __('messages.created_success'));
     }
 
     public function show(Employee $employee)
@@ -52,13 +52,13 @@ class EmployeeController extends Controller
         $employee->update($data);
 
         return redirect()->route('employees.show', $employee)
-            ->with('success', 'تم تحديث بيانات الموظف.');
+            ->with('success', __('messages.updated_success'));
     }
 
     public function destroy(Employee $employee)
     {
         $employee->delete(); // Soft delete
-        return redirect()->route('employees.index')->with('success', 'تم حذف الموظف.');
+        return redirect()->route('employees.index')->with('success', __('messages.deleted_success'));
     }
 
     private function validateData(Request $request, ?int $ignoreId = null): array

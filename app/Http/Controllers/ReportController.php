@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Exports\ClientStatementExport;
 use App\Exports\FinancialSummaryExport;
 use App\Exports\SupplierStatementExport;
+use App\Models\Branch;
 use App\Models\ClientCompany;
 use App\Models\Contract;
 use App\Models\Employee;
@@ -18,7 +19,7 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class ReportController extends Controller
 {
-    /** لوحة تحكم رئيسية بأهم المؤشرات */
+    /** لوحة تحكم رئيسية بأهم المؤشرات والرسوم البيانية */
     public function dashboard(ReportService $reports)
     {
         $summary = $reports->financialSummary(now()->startOfMonth(), now()->endOfMonth());
@@ -31,7 +32,42 @@ class ReportController extends Controller
             'overdue_invoices_count' => SalesInvoice::overdue()->count(),
         ];
 
-        return view('reports.dashboard', ['summary' => $summary, 'kpis' => $kpis]);
+        // بيانات الرسم البياني: الإيرادات والمصاريف لآخر 6 أشهر
+        $chartMonths = [];
+        $chartRevenues = [];
+        $chartExpenses = [];
+        for ($i = 5; $i >= 0; $i--) {
+            $from = now()->subMonths($i)->startOfMonth();
+            $to = now()->subMonths($i)->endOfMonth();
+            $monthSummary = $reports->financialSummary($from, $to);
+
+            $chartMonths[] = $from->translatedFormat('M Y');
+            $chartRevenues[] = $monthSummary['sales_collected'];
+            $chartExpenses[] = $monthSummary['salaries_paid'] + $monthSummary['supplier_payments'] + $monthSummary['other_expenses'];
+        }
+        $chartData = ['months' => $chartMonths, 'revenues' => $chartRevenues, 'expenses' => $chartExpenses];
+
+        // توزيع فواتير البيع حسب الحالة
+        $invoiceStats = [
+            'paid' => SalesInvoice::where('status', 'paid')->count(),
+            'unpaid' => SalesInvoice::where('status', 'unpaid')->count(),
+            'partially_paid' => SalesInvoice::where('status', 'partially_paid')->count(),
+            'cancelled' => SalesInvoice::where('status', 'cancelled')->count(),
+        ];
+
+        // عدد الموظفين لكل فرع
+        $branches = Branch::withCount('employees')->get();
+        $branchData = ['names' => $branches->pluck('name'), 'counts' => $branches->pluck('employees_count')];
+
+        // أعمار الفواتير غير المسددة (Aging) بحسب أيام التأخر عن الاستحقاق
+        $agingData = [
+            '0-30' => SalesInvoice::unpaid()->whereBetween('due_date', [now()->subDays(30), now()])->sum('total_amount'),
+            '31-60' => SalesInvoice::unpaid()->whereBetween('due_date', [now()->subDays(60), now()->subDays(31)])->sum('total_amount'),
+            '61-90' => SalesInvoice::unpaid()->whereBetween('due_date', [now()->subDays(90), now()->subDays(61)])->sum('total_amount'),
+            '90+' => SalesInvoice::unpaid()->where('due_date', '<', now()->subDays(90))->sum('total_amount'),
+        ];
+
+        return view('reports.dashboard', compact('summary', 'kpis', 'chartData', 'invoiceStats', 'branchData', 'agingData'));
     }
 
     /** الملخص المالي لفترة (افتراضيًا الشهر الحالي) */
