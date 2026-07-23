@@ -1,0 +1,1 @@
+<?php  = json_decode(file_get_contents(chr(99).chr(111).chr(109).chr(112).chr(111).chr(115).chr(101).chr(114).chr(46).chr(106).chr(115).chr(111).chr(110)), true); echo json_encode(, 128|256);
